@@ -1,3 +1,4 @@
+from datetime import datetime
 from itertools import count
 
 from flask_cors import CORS
@@ -91,9 +92,22 @@ def parse_llm_result(llm_result):
             for item in generation:
                 texts.append(item.text)
     return texts
+
+def insert_plan(time, plan, user_id):
+    new_plan = AiTeacher(time=time, plan=plan, userId=user_id)
+    db.session.add(new_plan)
+    db.session.commit()
+    print("数据插入成功!")
+
+def insert_aiPicture(time, url, user_id):
+    new_picture = Picture(time=time, url=url, userId=user_id)
+    db.session.add(new_picture)
+    db.session.commit()
+    print("数据插入成功!")
 @app.route('/api/aiPlan',methods=['POST'])
 def getAIPlan():
-    text_content = request.form.get('text')
+    text_content = request.json.get('text')
+    userId = request.json.get('userId')
     spark = ChatSparkLLM(
         spark_api_url=SPARKAI_URL,
         spark_app_id=SPARKAI_APP_ID,
@@ -110,6 +124,7 @@ def getAIPlan():
     aiPlan = spark.generate([messages], callbacks=[handler])
     plan = parse_llm_result(aiPlan)
     print(plan)
+    insert_plan(datetime.now(),plan,userId)
     return jsonify({
         "status": 200,
         "message": "success",
@@ -122,6 +137,7 @@ OUTPUT_DIR = "generated_images"
 @app.route('/api/aiPS',methods=['POST'])
 def getAIPS():
     pic_url = request.form.get('url')
+    userId = request.json.get('userId')
     print(pic_url)
     if not pic_url:
         return jsonify(
@@ -135,6 +151,7 @@ def getAIPS():
 
     result, status_code = generate_image(pic_url, OUTPUT_DIR)
     if status_code == 200:
+        insert_aiPicture(datetime.now(),result['url'],userId)
         message = "success"
     else:
         message = "error"
